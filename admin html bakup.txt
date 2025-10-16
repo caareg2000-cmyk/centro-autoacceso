@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel Admin - Centro de Autoacceso</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin:0; padding:0; background:#f4f6f9; color:#333; }
+header { background:#0c2340; color:white; padding:15px 0; text-align:center; }
+main { padding:20px; max-width:1200px; margin:auto; }
+.filtro { margin-bottom:25px; display:flex; gap:15px; flex-wrap:wrap; align-items:center; }
+.filtro label { font-weight:600; }
+.filtro input, .filtro select { padding:6px 10px; border-radius:5px; border:1px solid #ccc; }
+button { padding:6px 12px; background:#0c2340; color:white; border:none; border-radius:5px; cursor:pointer; }
+button:hover { background:#193763; }
+.grafico-seccion { margin-bottom:50px; background:white; padding:15px; border-radius:12px; box-shadow:0 3px 10px rgba(0,0,0,0.1); }
+.grafico-seccion h2 { margin-top:0; font-size:1.2em; color:#0c2340; }
+.graficos-container { display:flex; flex-wrap:wrap; gap:20px; justify-content:center; }
+.grafico-container { background:white; padding:10px; border-radius:12px; box-shadow:0 3px 8px rgba(0,0,0,0.05); flex:1 1 400px; min-width:300px; max-width:500px; }
+canvas { max-height:350px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Panel Admin - Estadísticas de Asistencia</h1>
+</header>
+
+<main>
+  <div class="filtro">
+    <label for="sala">Sala:</label>
+    <select id="sala">
+      <option value="">Todas</option>
+      <option>Medios digitales</option>
+      <option>Ludoteca</option>
+      <option>Diagnósticos</option>
+      <option>Lecto escritura</option>
+      <option>Sala de internet</option>
+      <option>Len 7</option>
+    </select>
+
+    <label for="desde">Desde:</label>
+    <input type="date" id="desde">
+
+    <label for="hasta">Hasta:</label>
+    <input type="date" id="hasta">
+
+    <button id="btnCargar">Cargar Estadísticas</button>
+  </div>
+
+  <div id="estadisticas">
+    <!-- Gráficos dinámicos -->
+  </div>
+</main>
+
+<script src="admin.js"></script>
+</body>
+</html>

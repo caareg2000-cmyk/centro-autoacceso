@@ -1,0 +1,75 @@
+// server.js
+const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const { google } = require('googleapis');
+require('dotenv').config(); // si usas .env
+
+const app = express();
+const PORT = 3000;
+
+// === Google Sheets setup ===
+let sheetsClient = null;
+const SHEET_ID = process.env.SHEET_ID || '1DjFW71SDLHzGYImRzuhjvEvycxevUXm0oZDXLCNoOjg';
+const CREDENTIALS_PATH = path.join(__dirname, 'credentials.json');
+
+function initSheets() {
+  if (!fs.existsSync(CREDENTIALS_PATH) || !SHEET_ID) {
+    console.warn('Google Sheets no configurado (credentials.json o SHEET_ID faltan).');
+    return;
+  }
+
+  const creds = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf8'));
+  const jwtClient = new google.auth.JWT(
+    creds.client_email,
+    null,
+    creds.private_key,
+    ['https://www.googleapis.com/auth/spreadsheets']
+  );
+
+  sheetsClient = google.sheets({ version: 'v4', auth: jwtClient });
+  console.log('Google Sheets inicializado correctamente.');
+}
+
+initSheets();
+
+
+// === Funciones de ejemplo ===
+async function leerDatos() {
+  if (!sheetsClient) return;
+  try {
+    const res = await sheetsClient.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: 'Sheet1!A1:C10', // Ajusta el rango según tu hoja
+    });
+    console.log('Datos de la hoja:', res.data.values);
+  } catch (error) {
+    console.error('Error al leer datos de Google Sheets:', error);
+  }
+}
+
+async function escribirDatos() {
+  if (!sheetsClient) return;
+  try {
+    await sheetsClient.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: 'Sheet1!A1',
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [['Hola', 'Mundo']],
+      },
+    });
+    console.log('Datos escritos correctamente en la hoja.');
+  } catch (error) {
+    console.error('Error al escribir datos en Google Sheets:', error);
+  }
+}
+
+// Llamadas de prueba (puedes eliminarlas o dejarlas)
+leerDatos();
+escribirDatos();
+
+// === Servidor ===
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});

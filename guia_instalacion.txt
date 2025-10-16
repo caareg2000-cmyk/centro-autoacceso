@@ -1,0 +1,8 @@
+
+Guía rápida de instalación y configuración
+1) Instala Node.js (LTS) desde nodejs.org.
+2) Coloca credentials.json (service account) en la carpeta raíz del proyecto.
+3) Comparte la Google Sheet con el email que aparece en credentials.json (client_email) como Editor.
+4) Obtén SHEET_ID de la URL y actualiza start_server_env.bat o la variable de entorno en Windows.
+5) Ejecuta start_server.bat para instalar dependencias y arrancar el servidor.
+6) Para crear un .exe con Nativefier, ejecuta crear_nativefier.bat (modifica la IP en el comando).
