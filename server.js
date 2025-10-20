@@ -95,13 +95,11 @@ app.post('/api/register', (req, res) => {
   if (!nombre || !actividad || !sala) return res.status(400).json({ error: 'Faltan campos obligatorios' });
 
   const fechaObj = new Date();
-
-  // Fecha y hora locales CDMX
-  const fecha = fechaObj.toLocaleDateString('es-CA', { timeZone: 'America/Mexico_City' });
-  const hora = fechaObj.toLocaleTimeString('es-ES', { hour12: false, timeZone: 'America/Mexico_City' });
+  const fecha = fechaObj.toLocaleDateString('es-CA', { timeZone: 'America/Mexico_City' }); // YYYY-MM-DD
+  const hora = fechaObj.toLocaleTimeString('es-ES', { hour12: false, timeZone: 'America/Mexico_City' }); // HH:MM:SS
 
   const stmt = db.prepare('INSERT INTO asistencias (nombre, matricula, actividad, sala, fecha, hora_entrada, synced) VALUES (?,?,?,?,?,?,?)');
-  stmt.run(nombre, matricula || '', actividad, sala, fecha, hora, 0, function (err) {
+  stmt.run(nombre, matricula || '', actividad, sala, fecha, hora, 0, function(err) {
     if (err) return res.status(500).json({ error: err.message });
     const lastId = this.lastID;
     const row = { nombre, matricula: matricula || '', actividad, sala, fecha, hora_entrada: hora };
@@ -121,15 +119,21 @@ app.get('/api/stats', (req, res) => {
   const filter = [];
   const params = [];
 
-  // 🔹 Ajuste de zona horaria local (CDMX)
+  // 🔹 Normalizar fechas antiguas con /
+  function normalizeDate(d) {
+    return d.replace(/\//g, '-');
+  }
+
   const tz = 'America/Mexico_City';
   if (from) {
+    from = normalizeDate(from);
     const d = new Date(from + 'T00:00:00');
     from = d.toLocaleDateString('es-CA', { timeZone: tz });
     filter.push('fecha>=?');
     params.push(from);
   }
   if (to) {
+    to = normalizeDate(to);
     const d = new Date(to + 'T23:59:59');
     to = d.toLocaleDateString('es-CA', { timeZone: tz });
     filter.push('fecha<=?');
@@ -160,7 +164,10 @@ app.get('/api/stats', (req, res) => {
         db.all(`SELECT fecha, COUNT(*) AS cnt FROM asistencias ${whereClause} GROUP BY fecha ORDER BY fecha ASC`, params, (err4, rows4) => {
           if (err4) return res.status(500).json({ error: err4.message });
           stats.por_dia = {};
-          rows4.forEach(r => stats.por_dia[r.fecha] = r.cnt);
+          rows4.forEach(r => {
+            const fechaNorm = normalizeDate(r.fecha);
+            stats.por_dia[fechaNorm] = r.cnt;
+          });
 
           db.all(`SELECT substr(hora_entrada,1,2) AS hora, COUNT(*) AS cnt FROM asistencias ${whereClause} GROUP BY hora ORDER BY hora ASC`, params, (err5, rows5) => {
             if (err5) return res.status(500).json({ error: err5.message });
@@ -182,7 +189,10 @@ async function generateExcel(rows, titulo) {
   sheet.addRow([titulo]);
   sheet.addRow([]);
   sheet.addRow(['Nombre', 'Matrícula', 'Actividad', 'Sala', 'Fecha', 'Hora']);
-  rows.forEach(r => sheet.addRow([r.nombre, r.matricula, r.actividad, r.sala, r.fecha, r.hora_entrada]));
+  rows.forEach(r => {
+    const fechaNorm = r.fecha.replace(/\//g, '-');
+    sheet.addRow([r.nombre, r.matricula, r.actividad, r.sala, fechaNorm, r.hora_entrada]);
+  });
   sheet.columns.forEach(col => {
     let maxLength = 10;
     col.eachCell({ includeEmpty: true }, cell => {
@@ -198,8 +208,8 @@ app.get('/api/export', (req, res) => {
   const { from, to, sala } = req.query;
   let sql = 'SELECT * FROM asistencias WHERE 1=1';
   const params = [];
-  if (from) { sql += ' AND fecha>=?'; params.push(from); }
-  if (to) { sql += ' AND fecha<=?'; params.push(to); }
+  if (from) { sql += ' AND fecha>=?'; params.push(from.replace(/\//g, '-')); }
+  if (to) { sql += ' AND fecha<=?'; params.push(to.replace(/\//g, '-')); }
   if (sala) { sql += ' AND sala=?'; params.push(sala); }
   sql += ' ORDER BY fecha ASC, hora_entrada ASC';
   db.all(sql, params, async (err, rows) => {
