@@ -1,0 +1,182 @@
+const salaSelect = document.getElementById('sala');
+const desdeInput = document.getElementById('desde');
+const hastaInput = document.getElementById('hasta');
+const btnCargar = document.getElementById('btnCargar');
+const contenedor = document.getElementById('estadisticas');
+
+let charts = []; // Para destruirlos antes de volver a dibujar
+
+function normalizeDate(input) {
+  if (!input) return '';
+  return input.replace(/\//g, '-');
+}
+
+function calcularPorcentajes(obj) {
+  const total = Object.values(obj).reduce((a, b) => a + b, 0);
+  const porcentajes = {};
+  for (const key in obj) {
+    porcentajes[key] = total ? ((obj[key] / total) * 100).toFixed(1) : 0;
+  }
+  return { total, porcentajes };
+}
+
+function getDayOfWeekName(date) {
+  return ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][date.getDay()];
+}
+
+async function cargarEstadisticas() {
+  const sala = salaSelect.value;
+  const desde = normalizeDate(desdeInput.value);
+  const hasta = normalizeDate(hastaInput.value);
+
+  try {
+    const res = await fetch(`/api/stats?sala=${encodeURIComponent(sala)}&from=${desde}&to=${hasta}`);
+    if (!res.ok) throw new Error('Error al cargar estadísticas');
+    const stats = await res.json();
+
+    const tzOffset = -6 * 60; // GMT-6
+    const fromDate = desde ? new Date(new Date(desde + 'T00:00:00').getTime() + tzOffset * 60000) : null;
+    const toDate = hasta ? new Date(new Date(hasta + 'T23:59:59').getTime() + tzOffset * 60000) : null;
+
+    if (stats.por_dia && (fromDate || toDate)) {
+      const filteredPorDia = {};
+      for (const f in stats.por_dia) {
+        const d = new Date(f + 'T00:00:00');
+        if ((fromDate && d < fromDate) || (toDate && d > toDate)) continue;
+        filteredPorDia[f] = stats.por_dia[f];
+      }
+      stats.por_dia = filteredPorDia;
+    }
+
+    mostrarGraficos(stats, desde, hasta, sala);
+  } catch (e) {
+    contenedor.innerHTML = `<p style="color:red;">${e.message}</p>`;
+  }
+}
+
+function mostrarGraficos(stats, desde, hasta, salaFiltro) {
+  contenedor.innerHTML = '';
+  charts.forEach(c => c.destroy());
+  charts = [];
+
+  // ===== Resumen Global =====
+  const resumenDiv = document.createElement('div');
+  resumenDiv.className = 'resumen-global';
+  const { total: totalSala, porcentajes: porcSala } = calcularPorcentajes(stats.por_sala || {});
+  const { total: totalAct, porcentajes: porcAct } = calcularPorcentajes(stats.por_actividad || {});
+
+  let salaMax = '', salaMin = '', actMax = '', actMin = '';
+  if (totalSala > 0) {
+    salaMax = Object.keys(stats.por_sala).reduce((a,b)=>stats.por_sala[a]>stats.por_sala[b]?a:b);
+    salaMin = Object.keys(stats.por_sala).reduce((a,b)=>stats.por_sala[a]<stats.por_sala[b]?a:b);
+  }
+  if (totalAct > 0) {
+    actMax = Object.keys(stats.por_actividad).reduce((a,b)=>stats.por_actividad[a]>stats.por_actividad[b]?a:b);
+    actMin = Object.keys(stats.por_actividad).reduce((a,b)=>stats.por_actividad[a]<stats.por_actividad[b]?a:b);
+  }
+
+  resumenDiv.innerHTML = `
+    <h3>Resumen del período ${desde || 'inicio'} al ${hasta || 'fin'} ${salaFiltro ? ' - Sala: '+salaFiltro : ''}</h3>
+    <p><strong>Total de registros:</strong> ${totalSala}</p>
+    <p><strong>Sala más concurrida:</strong> ${salaMax} (${porcSala[salaMax] || 0}%), <strong>menos concurrida:</strong> ${salaMin} (${porcSala[salaMin] || 0}%)</p>
+    <p><strong>Total de actividades:</strong> ${totalAct}</p>
+    <p><strong>Actividad más realizada:</strong> ${actMax} (${porcAct[actMax] || 0}%), <strong>menos realizada:</strong> ${actMin} (${porcAct[actMin] || 0}%)</p>
+  `;
+
+  contenedor.appendChild(resumenDiv);
+
+  // ===== Por Sala =====
+  const salaDiv = document.createElement('div');
+  salaDiv.className = 'grafico-seccion';
+  salaDiv.innerHTML = `<h2>Registros por Sala</h2>
+    <p>Total registros: ${totalSala}</p>
+    <div class="graficos-container"><canvas id="graficoSala"></canvas></div>`;
+  contenedor.appendChild(salaDiv);
+
+  const ctxSala = document.getElementById('graficoSala').getContext('2d');
+  charts.push(new Chart(ctxSala, {
+    type: 'pie',
+    data: { labels: Object.keys(stats.por_sala), datasets: [{ label: 'Registros', data: Object.values(stats.por_sala), backgroundColor: ['#0c2340','#193763','#4361ee','#3f37c9','#4895ef','#4cc9f0'] }] },
+    options: { plugins: { tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed} registros (${porcSala[ctx.label] || 0}%)` } } } }
+  }));
+
+  // ===== Por Actividad =====
+  const actDiv = document.createElement('div');
+  actDiv.className = 'grafico-seccion';
+  actDiv.innerHTML = `<h2>Registros por Actividad</h2>
+    <p>Total actividades: ${totalAct}</p>
+    <div class="graficos-container"><canvas id="graficoActividad"></canvas></div>`;
+  contenedor.appendChild(actDiv);
+
+  const ctxAct = document.getElementById('graficoActividad').getContext('2d');
+  const statsPorActividad = {};
+  for (let act in stats.por_actividad) {
+    const key = act.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    statsPorActividad[key] = (statsPorActividad[key] || 0) + stats.por_actividad[act];
+  }
+  const labelsActividad = Object.keys(statsPorActividad).map(k => k === 'practica de idioma' ? 'Práctica de idioma' : k.charAt(0).toUpperCase() + k.slice(1));
+  const dataActividad = Object.values(statsPorActividad);
+
+  charts.push(new Chart(ctxAct, {
+    type: 'pie',
+    data: { labels: labelsActividad, datasets: [{ label: 'Registros', data: dataActividad, backgroundColor: ['#4cc9f0','#4895ef','#3f37c9','#4361ee','#193763','#0c2340','#ff6d6d','#ffa500','#ffd700'] }] },
+    options: { plugins: { tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed} registros (${porcAct[ctx.label] || 0}%)` } } } }
+  }));
+
+  // ===== Por Día =====
+  const diaDiv = document.createElement('div');
+  diaDiv.className = 'grafico-seccion';
+  diaDiv.innerHTML = `<h2>Registros por Día</h2><div class="graficos-container"><canvas id="graficoDia"></canvas></div>`;
+  contenedor.appendChild(diaDiv);
+  const ctxDia = document.getElementById('graficoDia').getContext('2d');
+
+  charts.push(new Chart(ctxDia, {
+    type: 'line',
+    data: { labels: Object.keys(stats.por_dia), datasets: [{ label: 'Registros', data: Object.values(stats.por_dia), fill: false, borderColor: '#0c2340', backgroundColor: '#193763', tension: 0.2, pointRadius: 5 }] },
+    options: { responsive:true, plugins: { tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y}` } } }, interaction: { mode:'nearest', intersect:true }, scales: { y: { beginAtZero:true } } }
+  }));
+
+  // ===== Por Hora =====
+  const horaDiv = document.createElement('div');
+  horaDiv.className = 'grafico-seccion';
+  horaDiv.innerHTML = `<h2>Registros por Hora</h2><div class="graficos-container"><canvas id="graficoHora"></canvas></div>`;
+  contenedor.appendChild(horaDiv);
+  const ctxHora = document.getElementById('graficoHora').getContext('2d');
+
+  charts.push(new Chart(ctxHora, {
+    type: 'line',
+    data: { labels: Object.keys(stats.por_hora).map(h => h.padStart(2,'0') + ':00'), datasets: [{ label: 'Registros', data: Object.values(stats.por_hora), fill: false, borderColor: '#ff6d6d', backgroundColor: '#ffaaaa', tension: 0.2, pointRadius: 5 }] },
+    options: { responsive:true, plugins: { tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y}` } } }, interaction: { mode:'nearest', intersect:true }, scales: { y: { beginAtZero:true } } }
+  }));
+
+  // ===== Botón PDF =====
+  const btnPDF = document.createElement('button');
+  btnPDF.textContent = 'Exportar a PDF';
+  btnPDF.style.marginTop='10px';
+  btnPDF.onclick = exportToPDF;
+  contenedor.appendChild(btnPDF);
+}
+
+function exportToPDF() {
+  const estadisticas = document.getElementById('estadisticas');
+  html2canvas(estadisticas).then(canvas => {
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
+    const imgProps = pdf.getImageProperties(imgData);
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    pdf.save('estadisticas.pdf');
+  });
+}
+
+// Eventos
+btnCargar.addEventListener('click', cargarEstadisticas);
+const btnExport = document.getElementById('btnExport');
+btnExport.addEventListener('click', () => {
+  const sala = salaSelect.value;
+  const desde = normalizeDate(desdeInput.value);
+  const hasta = normalizeDate(hastaInput.value);
+  const url = `/api/export?from=${encodeURIComponent(desde)}&to=${encodeURIComponent(hasta)}&sala=${encodeURIComponent(sala)}`;
+  window.open(url, '_blank');
+});
