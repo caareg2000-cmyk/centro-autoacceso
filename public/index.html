@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Registro - Centro de Autoacceso</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f4f6f9;
+      margin: 0;
+      padding: 0;
+      color: #333;
+    }
+
+    header {
+      background-color: #0c2340; /* Azul institucional BUAP */
+      color: white;
+      text-align: center;
+      padding: 20px 0;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 1.8em;
+      font-weight: 600;
+    }
+
+    main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 30px auto;
+      max-width: 500px;
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .logo-central {
+      width: 170px;
+      margin-bottom: 20px;
+    }
+
+    form {
+      width: 100%;
+    }
+
+    label {
+      font-weight: 600;
+      display: block;
+      margin-top: 15px;
+      color: #0c2340;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 10px;
+      margin-top: 6px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 1em;
+    }
+
+    input:focus, select:focus {
+      border-color: #0c2340;
+      outline: none;
+    }
+
+    button {
+      margin-top: 25px;
+      background-color: #0c2340;
+      color: white;
+      padding: 12px 18px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1em;
+      cursor: pointer;
+      transition: 0.3s ease;
+      width: 100%;
+    }
+
+    button:hover {
+      background-color: #193763;
+    }
+
+    footer {
+      text-align: center;
+      color: #666;
+      font-size: 0.9em;
+      margin-top: 20px;
+      padding-bottom: 20px;
+    }
+
+    #msg {
+      text-align: center;
+      margin-top: 15px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Registro</h1>
+  </header>
+
+  <main>
+    <img src="logo-buap.png" alt="Logo BUAP" class="logo-central" />
+
+    <form id="registroForm">
+      <label for="nombre">Nombre completo:</label>
+      <input type="text" id="nombre" name="nombre" required />
+
+      <label for="matricula">Matrícula:</label>
+      <input type="text" id="matricula" name="matricula" required />
+
+      <label for="sala">Sala:</label>
+      <select id="sala" name="sala" required>
+        <option value="">Seleccione una sala</option>
+        <option>Medios digitales</option>
+        <option>Ludoteca</option>
+        <option>Diagnósticos</option>
+        <option>Lecto escritura</option>
+        <option>Sala de internet</option>
+        <option>Len 7</option>
+      </select>
+
+      <label for="actividad">Actividad:</label>
+      <select id="actividad" name="actividad" required>
+        <option value="">Seleccione una actividad</option>
+        <option>Tarea</option>
+        <option>Investigación</option>
+        <option>Clase en línea</option>
+        <option>Práctica de idioma</option>
+        <option>Actividad lúdica</option>
+        <option>Examen diagnóstico</option>
+        <option>Examen de lengua meta</option>
+        <option>Examen de CELE</option>
+        <option>Otro (especifique)</option>
+      </select>
+
+      <button type="submit">Registrar</button>
+      <p id="msg"></p>
+    </form>
+  </main>
+
+  <footer>
+    © 2025 Centro de Autoacceso - BUAP
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
+>
+
