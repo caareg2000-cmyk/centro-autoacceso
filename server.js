@@ -19,32 +19,36 @@ const SHEET_ID =
   process.env.SHEET_ID || '1DjFW71SDLHzGYImRzuhjvEvycxevUXm0oZDXLCNoOjg';
 const SHEET_RANGE = 'Hoja 1!A:F';
 
-let sheetsClient = null;
+let sheetsClient;
 
 async function initSheets() {
   try {
-    const auth = new google.auth.GoogleAuth({
-      keyFile: path.join(__dirname, 'credentials.json'),
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    const credentials = JSON.parse(
+      fs.readFileSync(path.join(__dirname, 'credentials.json'), 'utf8')
+    );
+
+    const auth = new google.auth.JWT(
+      credentials.client_email,
+      null,
+      credentials.private_key,
+      ['https://www.googleapis.com/auth/spreadsheets']
+    );
+
+    await auth.authorize();
+
+    sheetsClient = google.sheets({
+      version: 'v4',
+      auth,
     });
 
-    sheetsClient = google.sheets({ version: 'v4', auth });
-    console.log('✅ Conexión con Google Sheets establecida.');
+    console.log('✅ Conexión REAL con Google Sheets establecida.');
   } catch (err) {
-    console.error('❌ Error Google Sheets:', err.message);
-    sheetsClient = null;
+    console.error('❌ Error Google Sheets:', err);
   }
 }
 
-// asegura que sheets esté listo antes de usarlo
-async function ensureSheetsReady() {
-  if (!sheetsClient) {
-    await initSheets();
-  }
-}
-
-// inicializa al arrancar el server
 initSheets();
+
 
 
 
@@ -333,5 +337,6 @@ app.get('/', (req, res) =>
 app.listen(PORT, '0.0.0.0', () =>
   console.log(`Server running on port ${PORT}`)
 );
+
 
 
