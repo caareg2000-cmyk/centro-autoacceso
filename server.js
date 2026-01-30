@@ -23,31 +23,29 @@ let sheetsClient = null;
 
 async function initSheets() {
   try {
-    const credentials = JSON.parse(
-      fs.readFileSync(path.join(__dirname, 'credentials.json'), 'utf8')
-    );
-
-    const auth = new google.auth.JWT(
-      credentials.client_email,
-      null,
-      credentials.private_key,
-      ['https://www.googleapis.com/auth/spreadsheets']
-    );
-
-    await auth.authorize(); // 👈 MUY IMPORTANTE
-
-    sheetsClient = google.sheets({
-      version: 'v4',
-      auth,
+    const auth = new google.auth.GoogleAuth({
+      keyFile: path.join(__dirname, 'credentials.json'),
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
-    console.log('✅ Conexión REAL con Google Sheets establecida.');
+    sheetsClient = google.sheets({ version: 'v4', auth });
+    console.log('✅ Conexión con Google Sheets establecida.');
   } catch (err) {
-    console.error('❌ Error Google Sheets:', err);
+    console.error('❌ Error Google Sheets:', err.message);
+    sheetsClient = null;
   }
 }
 
+// asegura que sheets esté listo antes de usarlo
+async function ensureSheetsReady() {
+  if (!sheetsClient) {
+    await initSheets();
+  }
+}
+
+// inicializa al arrancar el server
 initSheets();
+
 
 
 // ==================== Mapas oficiales ====================
@@ -335,4 +333,5 @@ app.get('/', (req, res) =>
 app.listen(PORT, '0.0.0.0', () =>
   console.log(`Server running on port ${PORT}`)
 );
+
 
