@@ -1,141 +1,135 @@
-/* ===========================
-   server.js – PROGRAMA DE REGISTRO CAA
-   =========================== */
-
 const express = require('express');
 const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const { google } = require('googleapis');
+const ExcelJS = require('exceljs');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
-/* ===========================
-   Middleware
-   =========================== */
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(cors());
+app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-/* ===========================
-   Base de datos SQLite
-   =========================== */
-const db = new sqlite3.Database('./database.db', (err) => {
-  if (err) {
-    console.error('❌ Error al conectar con SQLite:', err.message);
-  } else {
-    console.log('✅ Conectado a SQLite');
-  }
-});
+// ================= GOOGLE SHEETS =================
+const SHEET_ID = process.env.SHEET_ID;
+const SHEET_RANGE = 'Hoja 1!A:F';
+let sheetsClient = null;
 
-/* ===========================
-   Tabla de registros
-   =========================== */
-db.run(`
-  CREATE TABLE IF NOT EXISTS registros (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    fecha TEXT,
-    hora INTEGER,
-    sede TEXT
-  )
-`);
-
-/* ===========================
-   Registrar asistencia
-   =========================== */
-app.post('/api/registro', (req, res) => {
-  const { fecha, hora, sede } = req.body;
-
-  if (!fecha || hora === undefined || !sede) {
-    return res.status(400).json({ error: 'Datos incompletos' });
-  }
-
-  const horaNum = parseInt(hora, 10);
-
-  // Centro abierto solo de 8 a 20
-  if (horaNum < 8 || horaNum > 20) {
-    return res.status(400).json({ error: 'Hora fuera del rango permitido' });
-  }
-
-  const sql = `
-    INSERT INTO registros (fecha, hora, sede)
-    VALUES (?, ?, ?)
-  `;
-
-  db.run(sql, [fecha, horaNum, sede], (err) => {
-    if (err) {
-      console.error('❌ Error al guardar registro:', err.message);
-      return res.status(500).json({ error: 'Error al guardar registro' });
-    }
-    res.json({ success: true });
+async function initSheets() {
+  const auth = new google.auth.GoogleAuth({
+    keyFile: path.join(__dirname, 'credentials.json'),
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
-});
+  sheetsClient = google.sheets({ version: 'v4', auth });
+  console.log('✅ Conectado a Google Sheets');
+}
+initSheets();
 
-/* ===========================
-   Estadísticas generales (ADMIN)
-   =========================== */
-app.get('/api/stats', (req, res) => {
-  const sql = `
-    SELECT fecha, hora, COUNT(*) AS total
-    FROM registros
-    WHERE hora BETWEEN 8 AND 20
-    GROUP BY fecha, hora
-    ORDER BY fecha, hora
-  `;
+// ================= NORMALIZACIÓN =================
+const salasOficiales = {
+  'medios digitales': 'Medios Digitales',
+  'ludoteca': 'Ludoteca',
+  'diagnósticos': 'Diagnósticos',
+  'lecto escritura': 'Lecto escritura',
+  'sala de internet': 'Sala de internet',
+  'len 7': 'Len 7'
+};
 
-  db.all(sql, [], (err, rows) => {
-    if (err) {
-      console.error('❌ Error en estadísticas:', err.message);
-      return res.status(500).json({ error: 'Error al obtener estadísticas' });
-    }
+const actividadesOficiales = {
+  'práctica de idioma': 'Práctica de idioma',
+  'tarea': 'Tarea',
+  'investigación': 'Investigación',
+  'actividad lúdica': 'Actividad Lúdica',
+  'clase en línea': 'Clase en Línea',
+  'clase presencial': 'Clase Presencial',
+  'asesoría': 'Asesoría',
+  'taller': 'Taller',
+  'formulario': 'Formulario',
+  'encuesta': 'Encuesta'
+};
 
-    res.json(rows);
+const norm = t => (t || '').trim().toLowerCase();
+
+// ================= DATOS =================
+async function getAllRows() {
+  const res = await sheetsClient.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: SHEET_RANGE,
   });
-});
 
-/* ===========================
-   Mapa de calor (8 a 20 hrs)
-   =========================== */
-app.get('/api/heatmap', (req, res) => {
-  const sql = `
-    SELECT 
-      hora,
-      COUNT(*) AS total
-    FROM registros
-    WHERE hora BETWEEN 8 AND 20
-    GROUP BY hora
-    ORDER BY hora
-  `;
+  const rows = res.data.values || [];
+  const data = [];
 
-  db.all(sql, [], (err, rows) => {
-    if (err) {
-      console.error('❌ Error mapa de calor:', err.message);
-      return res.status(500).json({ error: 'Error al generar mapa de calor' });
-    }
+  for (let i = 1; i < rows.length; i++) {
+    const [nombre, matricula, actividadRaw, salaRaw, fecha, hora] = rows[i];
+    if (!nombre) continue;
 
-    // Rellenar horas vacías para que el frontend no falle
-    const heatmap = [];
-    for (let h = 8; h <= 20; h++) {
-      const found = rows.find(r => r.hora === h);
-      heatmap.push({
-        hora: h,
-        total: found ? found.total : 0
-      });
-    }
+    data.push({
+      nombre,
+      matricula,
+      actividad: actividadesOficiales[norm(actividadRaw)] || actividadRaw,
+      sala: salasOficiales[norm(salaRaw)] || salaRaw,
+      fecha,
+      hora
+    });
+  }
+  return data;
+}
 
-    res.json(heatmap);
+// ================= STATS =================
+app.get('/api/stats', async (req, res) => {
+  const { from, to, sala } = req.query;
+  const rows = await getAllRows();
+
+  const filtered = rows.filter(r => {
+    if (sala && r.sala !== sala) return false;
+    if (from && r.fecha < from) return false;
+    if (to && r.fecha > to) return false;
+    return true;
   });
+
+  const stats = {
+    total: filtered.length,
+    por_actividad: {},
+    por_dia: {},
+    por_hora: {},
+    mapaCalor: {}
+  };
+
+  filtered.forEach(r => {
+    stats.por_actividad[r.actividad] = (stats.por_actividad[r.actividad] || 0) + 1;
+    stats.por_dia[r.fecha] = (stats.por_dia[r.fecha] || 0) + 1;
+
+    const h = parseInt(r.hora?.slice(0, 2));
+    if (h >= 8 && h <= 20) {
+      stats.por_hora[h] = (stats.por_hora[h] || 0) + 1;
+
+      if (!stats.mapaCalor[r.fecha]) stats.mapaCalor[r.fecha] = {};
+      stats.mapaCalor[r.fecha][h] = (stats.mapaCalor[r.fecha][h] || 0) + 1;
+    }
+  });
+
+  res.json(stats);
 });
 
-/* ===========================
-   Servir Admin
-   =========================== */
-app.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+// ================= EXPORT =================
+app.get('/api/export', async (req, res) => {
+  const rows = await getAllRows();
+  const wb = new ExcelJS.Workbook();
+  const sh = wb.addWorksheet('Reporte');
+
+  sh.addRow(['Nombre','Matrícula','Actividad','Sala','Fecha','Hora']);
+  rows.forEach(r => sh.addRow(Object.values(r)));
+
+  const buffer = await wb.xlsx.writeBuffer();
+  res.setHeader('Content-Disposition','attachment; filename=reporte.xlsx');
+  res.send(buffer);
 });
 
-/* ===========================
-   Servidor
-   =========================== */
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-});
+// ================= RUTAS =================
+app.get('/admin', (req,res)=>res.sendFile(path.join(__dirname,'public/admin.html')));
+app.get('/', (req,res)=>res.sendFile(path.join(__dirname,'public/index.html')));
+
+app.listen(PORT,'0.0.0.0',()=>console.log(`🚀 Servidor corriendo en puerto ${PORT}`));
