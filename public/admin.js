@@ -1,58 +1,81 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <title>Panel Admin - CAA</title>
-  <link rel="stylesheet" href="styles.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body>
+const btnCargar = document.getElementById('btnCargar');
+const btnExport = document.getElementById('btnExport');
+const resumenGlobal = document.getElementById('resumenGlobal');
+const heatmap = document.getElementById('heatmap');
 
-<header>
-  <h1>Panel Admin - Estadísticas</h1>
-</header>
+let charts = {};
 
-<main>
-  <div class="filtro">
-    <label>Sala:</label>
-    <select id="sala">
-      <option value="">Todas</option>
-      <option>Medios Digitales</option>
-      <option>Ludoteca</option>
-      <option>Diagnósticos</option>
-      <option>Lecto escritura</option>
-      <option>Sala de internet</option>
-      <option>Len 7</option>
-    </select>
+btnCargar.onclick = async () => {
+  const sala = document.getElementById('sala').value;
+  const desde = document.getElementById('desde').value;
+  const hasta = document.getElementById('hasta').value;
 
-    <label>Desde:</label>
-    <input type="date" id="desde">
+  const params = new URLSearchParams({ sala, from: desde, to: hasta });
+  const res = await fetch(`/api/stats?${params}`);
+  const data = await res.json();
 
-    <label>Hasta:</label>
-    <input type="date" id="hasta">
+  render(data);
+};
 
-    <button id="btnCargar">Cargar</button>
-    <button id="btnExport">Descargar Excel</button>
-  </div>
+btnExport.onclick = () => {
+  const sala = document.getElementById('sala').value;
+  const desde = document.getElementById('desde').value;
+  const hasta = document.getElementById('hasta').value;
+  const params = new URLSearchParams({ sala, from: desde, to: hasta });
+  window.location = `/api/export?${params}`;
+};
 
-  <div id="resumenGlobal"></div>
+function render(data) {
+  resumenGlobal.innerHTML = `Total de asistencias: <b>${data.total}</b>`;
 
-  <section class="grafico-seccion">
-    <h2>Distribución de actividades</h2>
-    <canvas id="graficoActividades"></canvas>
-  </section>
+  renderChart('graficoActividades', 'pie',
+    Object.keys(data.por_actividad),
+    Object.values(data.por_actividad)
+  );
 
-  <section class="grafico-seccion">
-    <h2>Registros por hora (8–20)</h2>
-    <canvas id="graficoHora"></canvas>
-  </section>
+  const horas = [];
+  const valores = [];
+  for (let h = 8; h <= 20; h++) {
+    horas.push(`${h}:00`);
+    valores.push(data.por_hora[h] || 0);
+  }
 
-  <section class="grafico-seccion">
-    <h2>Mapa de calor</h2>
-    <div id="heatmap"></div>
-  </section>
-</main>
+  renderChart('graficoHora', 'bar', horas, valores);
+  renderHeatmap(data.mapaCalor);
+}
 
-<script src="admin.js"></script>
-</body>
-</html>
+function renderChart(id, type, labels, data) {
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(document.getElementById(id), {
+    type,
+    data: { labels, datasets: [{ data }] },
+    options: { responsive: true }
+  });
+}
+
+function renderHeatmap(mapa) {
+  heatmap.innerHTML = '';
+  const dias = Object.keys(mapa);
+  if (!dias.length) {
+    heatmap.textContent = 'Sin datos';
+    return;
+  }
+
+  const max = Math.max(...dias.flatMap(d => Object.values(mapa[d])));
+
+  dias.forEach(dia => {
+    const row = document.createElement('div');
+    row.style.display = 'grid';
+    row.style.gridTemplateColumns = 'repeat(13, 1fr)';
+
+    for (let h = 8; h <= 20; h++) {
+      const v = mapa[dia][h] || 0;
+      const cell = document.createElement('div');
+      cell.className = 'heat-cell';
+      cell.style.background = `rgba(0,82,165,${max ? v/max : 0})`;
+      cell.title = `${dia} ${h}:00 → ${v}`;
+      row.appendChild(cell);
+    }
+    heatmap.appendChild(row);
+  });
+}
