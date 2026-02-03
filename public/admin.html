@@ -5,169 +5,223 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Panel Admin - Centro de Autoacceso</title>
 
-  <!-- Estilos -->
-  <link rel="stylesheet" href="styles.css" />
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
+    :root {
+      --primary: #0c2340;
+      --secondary: #1e3a5f;
+      --accent: #ff6d6d;
+      --bg: #f4f6f9;
+      --card: #ffffff;
+      --text: #333;
+      --muted: #6b7280;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       margin: 0;
-      padding: 0;
-      background: #f4f6f9;
-      color: #333;
+      background: var(--bg);
+      color: var(--text);
     }
 
     header {
-      background: #0c2340;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
       color: white;
-      padding: 15px 0;
+      padding: 25px;
       text-align: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,.15);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: .03em;
     }
 
     main {
-      padding: 20px;
-      max-width: 1300px;
+      max-width: 1400px;
       margin: auto;
+      padding: 25px;
     }
 
+    /* =========================
+       FILTROS
+       ========================= */
     .filtro {
-      margin-bottom: 25px;
+      background: var(--card);
+      padding: 18px;
+      border-radius: 14px;
       display: flex;
-      gap: 15px;
       flex-wrap: wrap;
+      gap: 14px;
       align-items: center;
+      box-shadow: 0 8px 22px rgba(0,0,0,.08);
+      margin-bottom: 30px;
     }
 
     .filtro label {
       font-weight: 600;
+      font-size: 14px;
+      color: var(--muted);
     }
 
-    .filtro input,
     .filtro select,
-    .filtro button {
-      padding: 6px 10px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-      cursor: pointer;
+    .filtro input {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #d1d5db;
+      font-size: 14px;
     }
 
+    .filtro button {
+      padding: 9px 14px;
+      border-radius: 10px;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform .15s ease, box-shadow .15s ease;
+    }
+
+    #btnCargar {
+      background: var(--primary);
+      color: white;
+    }
+
+    #btnExport {
+      background: var(--accent);
+      color: white;
+    }
+
+    .filtro button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 14px rgba(0,0,0,.15);
+    }
+
+    /* =========================
+       RESUMEN GLOBAL
+       ========================= */
+    #resumenGlobal {
+      background: linear-gradient(135deg, #e0f7fa, #e3f2fd);
+      padding: 18px;
+      border-radius: 14px;
+      font-weight: 600;
+      color: #034a57;
+      margin-bottom: 30px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.08);
+    }
+
+    /* =========================
+       SECCIONES
+       ========================= */
     .grafico-seccion {
-      margin-bottom: 50px;
-      background: white;
-      padding: 15px;
-      border-radius: 12px;
-      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+      background: var(--card);
+      padding: 22px;
+      border-radius: 18px;
+      margin-bottom: 35px;
+      box-shadow: 0 10px 28px rgba(0,0,0,.08);
     }
 
     .grafico-seccion h2 {
-      margin-top: 0;
-      font-size: 1.2em;
-      color: #0c2340;
+      margin: 0 0 12px;
+      font-size: 18px;
+      color: var(--primary);
+    }
+
+    .resumen-local {
+      background: #fff8e1;
+      padding: 12px;
+      border-radius: 10px;
+      margin-bottom: 15px;
+      font-size: 14px;
+      color: #7a5c00;
     }
 
     .graficos-container {
       display: flex;
       flex-wrap: wrap;
-      gap: 20px;
       justify-content: center;
+      gap: 20px;
     }
 
     .grafico-container {
-      background: white;
-      padding: 10px;
-      border-radius: 12px;
-      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
-      flex: 1 1 400px;
+      flex: 1 1 420px;
       min-width: 300px;
-      max-width: 500px;
+      max-width: 550px;
     }
 
     canvas {
-      max-height: 350px;
+      max-height: 360px;
     }
 
-    button#btnCargar {
-      background: #0c2340;
-      color: white;
-      border: none;
-    }
-
-    button#btnCargar:hover {
-      background: #193763;
-    }
-
-    button#btnExport {
-      background: #ff6d6d;
-      color: white;
-      border: none;
-      margin-top: 10px;
-      padding: 8px 12px;
-      border-radius: 6px;
-    }
-
-    button#btnExport:hover {
-      background: #ff4d4d;
-    }
-
-    #resumenGlobal {
-      background: #e0f7fa;
-      padding: 15px;
-      border-radius: 10px;
-      margin-bottom: 20px;
-      font-weight: 600;
-      color: #006064;
-    }
-
-    .resumen-local {
-      background: #fff8e1;
-      padding: 10px;
-      border-radius: 8px;
-      margin: 10px 0;
-      font-size: 0.9em;
-      color: #8b6b00;
-    }
-
-    /* Mapa de calor */
+    /* =========================
+       HEATMAP
+       ========================= */
     #heatmap {
-      display: grid;
-      grid-template-columns: repeat(24, 1fr);
-      gap: 1px;
-      margin-top: 10px;
+      overflow-x: auto;
+      margin-top: 15px;
     }
 
-    .heat-cell {
+    .heatmap-table {
+      border-collapse: separate;
+      border-spacing: 4px;
       width: 100%;
-      aspect-ratio: 1;
-      background: #e0e0e0;
-      border-radius: 3px;
-      transition: background 0.3s;
+      font-size: 12px;
+    }
+
+    .heatmap-table th {
+      background: #f3f4f6;
+      padding: 6px;
+      border-radius: 8px;
+      font-weight: 600;
+    }
+
+    .heatmap-table td {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      text-align: center;
+      font-weight: 600;
+      cursor: default;
+      transition: transform .15s ease, box-shadow .15s ease;
+    }
+
+    .heatmap-table td:hover {
+      transform: scale(1.2);
+      box-shadow: 0 4px 12px rgba(0,0,0,.2);
+      z-index: 2;
     }
 
     .heat-legend {
       display: flex;
       justify-content: space-between;
-      font-size: 0.8em;
-      margin-top: 5px;
+      font-size: 13px;
+      margin-top: 10px;
+      color: var(--muted);
     }
 
-    /* Nueva sección de actividad dinámica */
-    #actividad {
-      margin-left: 10px;
+    @media (max-width: 600px) {
+      header h1 {
+        font-size: 20px;
+      }
     }
   </style>
-
-  <!-- Librerías -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
   <header>
-    <h1>Panel Admin - Estadísticas de Asistencia</h1>
+    <h1>Panel de Estadísticas · Centro de Autoacceso</h1>
   </header>
 
   <main>
+    <!-- FILTROS -->
     <div class="filtro">
-      <label for="sala">Sala:</label>
+      <label>Sala</label>
       <select id="sala">
         <option value="">Todas</option>
         <option>Medios Digitales</option>
@@ -178,72 +232,68 @@
         <option>Len 7</option>
       </select>
 
-      <label for="actividad">Actividad:</label>
+      <label>Actividad</label>
       <select id="actividad">
         <option value="">Todas</option>
-        <!-- Se llenará dinámicamente según la sala -->
       </select>
 
-      <label for="desde">Desde:</label>
+      <label>Desde</label>
       <input type="date" id="desde" />
 
-      <label for="hasta">Hasta:</label>
+      <label>Hasta</label>
       <input type="date" id="hasta" />
 
-      <button id="btnCargar">Cargar Estadísticas</button>
-      <button id="btnExport">Descargar Excel</button>
+      <button id="btnCargar">📊 Cargar</button>
+      <button id="btnExport">⬇ Excel</button>
     </div>
 
-    <!-- Resumen global -->
+    <!-- RESUMEN -->
     <div id="resumenGlobal"></div>
 
-    <!-- Contenedor de estadísticas -->
-    <div id="estadisticas">
-      <!-- Actividades -->
-      <section class="grafico-seccion">
-        <h2>Distribución de Actividades</h2>
-        <div class="resumen-local" id="resumenActividades"></div>
-        <div class="graficos-container">
-          <div class="grafico-container">
-            <canvas id="graficoActividades"></canvas>
-          </div>
+    <!-- ACTIVIDADES -->
+    <section class="grafico-seccion">
+      <h2>Distribución de Actividades</h2>
+      <div class="resumen-local" id="resumenActividades"></div>
+      <div class="graficos-container">
+        <div class="grafico-container">
+          <canvas id="graficoActividades"></canvas>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <!-- Registros por hora -->
-      <section class="grafico-seccion">
-        <h2>Registros por Hora</h2>
-        <div class="resumen-local" id="resumenHora"></div>
-        <div class="graficos-container">
-          <div class="grafico-container">
-            <canvas id="graficoHora"></canvas>
-          </div>
+    <!-- HORAS -->
+    <section class="grafico-seccion">
+      <h2>Registros por Hora</h2>
+      <div class="resumen-local" id="resumenHora"></div>
+      <div class="graficos-container">
+        <div class="grafico-container">
+          <canvas id="graficoHora"></canvas>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <!-- Registros por día -->
-      <section class="grafico-seccion">
-        <h2>Registros por Día</h2>
-        <div class="resumen-local" id="resumenDia"></div>
-        <div class="graficos-container">
-          <div class="grafico-container">
-            <canvas id="graficoDia"></canvas>
-          </div>
+    <!-- DIAS -->
+    <section class="grafico-seccion">
+      <h2>Registros por Día</h2>
+      <div class="resumen-local" id="resumenDia"></div>
+      <div class="graficos-container">
+        <div class="grafico-container">
+          <canvas id="graficoDia"></canvas>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <!-- Mapa de calor -->
-      <section class="grafico-seccion">
-        <h2>Mapa de Calor - Actividad por Día y Hora</h2>
-        <div class="resumen-local" id="resumenHeatmap"></div>
-        <div id="heatmap"></div>
-        <div class="heat-legend">
-          <span>Bajo</span>
-          <span>Medio</span>
-          <span>Alto</span>
-        </div>
-      </section>
-    </div>
+    <!-- HEATMAP -->
+    <section class="grafico-seccion">
+      <h2>Mapa de Calor · Día vs Hora</h2>
+      <div class="resumen-local" id="resumenHeatmap"></div>
+      <div id="heatmap"></div>
+      <div class="heat-legend">
+        <span>Bajo</span>
+        <span>Medio</span>
+        <span>Alto</span>
+      </div>
+    </section>
   </main>
 
   <script src="admin.js"></script>
