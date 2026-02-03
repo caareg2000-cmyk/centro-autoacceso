@@ -190,21 +190,39 @@ app.post('/api/register', async (req, res) => {
 app.get('/api/stats', async (req, res) => {
   try {
     const { from, to, sala } = req.query;
+
     const allRows = await getAllRows();
+    if (!Array.isArray(allRows)) {
+      return res.json({
+        total: 0,
+        por_sala: {},
+        por_actividad: {},
+        por_dia: {},
+        por_hora: {},
+      });
+    }
 
     const filtered = allRows.filter((r) => {
       let valid = true;
-      if (from)
+
+      if (from && r.fecha) {
         valid =
           valid &&
           new Date(`${r.fecha}T00:00:00`) >=
             new Date(`${from}T00:00:00`);
-      if (to)
+      }
+
+      if (to && r.fecha) {
         valid =
           valid &&
           new Date(`${r.fecha}T00:00:00`) <=
             new Date(`${to}T23:59:59`);
-      if (sala) valid = valid && r.sala === sala;
+      }
+
+      if (sala && r.sala) {
+        valid = valid && r.sala === sala;
+      }
+
       return valid;
     });
 
@@ -217,22 +235,42 @@ app.get('/api/stats', async (req, res) => {
     };
 
     filtered.forEach((r) => {
-      stats.por_sala[r.sala] = (stats.por_sala[r.sala] || 0) + 1;
-      stats.por_actividad[r.actividad] =
-        (stats.por_actividad[r.actividad] || 0) + 1;
-      stats.por_dia[r.fecha] = (stats.por_dia[r.fecha] || 0) + 1;
+      if (r.sala) {
+        stats.por_sala[r.sala] =
+          (stats.por_sala[r.sala] || 0) + 1;
+      }
+
+      if (r.actividad) {
+        stats.por_actividad[r.actividad] =
+          (stats.por_actividad[r.actividad] || 0) + 1;
+      }
+
+      if (r.fecha) {
+        stats.por_dia[r.fecha] =
+          (stats.por_dia[r.fecha] || 0) + 1;
+      }
 
       const hora = r.hora_entrada
-        ? r.hora_entrada.substr(0, 2)
+        ? r.hora_entrada.substring(0, 2)
         : '00';
-      stats.por_hora[hora] = (stats.por_hora[hora] || 0) + 1;
+
+      stats.por_hora[hora] =
+        (stats.por_hora[hora] || 0) + 1;
     });
 
     res.json(stats);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('❌ Error API stats:', err);
+    res.status(500).json({
+      total: 0,
+      por_sala: {},
+      por_actividad: {},
+      por_dia: {},
+      por_hora: {},
+    });
   }
 });
+
 
 // ==================== Export Excel ====================
 async function generateExcel(rows, titulo) {
@@ -330,6 +368,7 @@ app.get('/', (req, res) =>
 app.listen(PORT, '0.0.0.0', () =>
   console.log(`Server running on port ${PORT}`)
 );
+
 
 
 
