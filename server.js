@@ -33,7 +33,6 @@ async function initSheets() {
     });
 
     sheetsClient = google.sheets({ version: 'v4', auth });
-
     console.log('✅ Conexión con Google Sheets establecida.');
   } catch (err) {
     console.error('❌ Error Google Sheets:', err.message);
@@ -42,8 +41,6 @@ async function initSheets() {
 }
 
 initSheets();
-
-
 
 // ==================== Mapas oficiales ====================
 const salasOficiales = {
@@ -92,7 +89,7 @@ async function getAllRows() {
   const result = [];
 
   for (let i = 1; i < rows.length; i++) {
-    let [
+    const [
       nombre,
       matricula,
       actividadRaw,
@@ -157,9 +154,7 @@ app.post('/api/register', async (req, res) => {
 
     const ahora = new Date();
     const offset = -6; // GMT-6 CDMX
-    const ahoraMX = new Date(
-      ahora.getTime() + offset * 60 * 60 * 1000
-    );
+    const ahoraMX = new Date(ahora.getTime() + offset * 60 * 60 * 1000);
 
     const fechaStr = ahoraMX.toISOString().split('T')[0];
     const horaStr = ahoraMX.toTimeString().split(' ')[0];
@@ -190,37 +185,25 @@ app.post('/api/register', async (req, res) => {
 app.get('/api/stats', async (req, res) => {
   try {
     const { from, to, sala } = req.query;
-
     const allRows = await getAllRows();
-    if (!Array.isArray(allRows)) {
-      return res.json({
-        total: 0,
-        por_sala: {},
-        por_actividad: {},
-        por_dia: {},
-        por_hora: {},
-      });
-    }
 
     const filtered = allRows.filter((r) => {
       let valid = true;
 
       if (from && r.fecha) {
-        valid =
-          valid &&
+        valid &&=
           new Date(`${r.fecha}T00:00:00`) >=
-            new Date(`${from}T00:00:00`);
+          new Date(`${from}T00:00:00`);
       }
 
       if (to && r.fecha) {
-        valid =
-          valid &&
+        valid &&=
           new Date(`${r.fecha}T00:00:00`) <=
-            new Date(`${to}T23:59:59`);
+          new Date(`${to}T23:59:59`);
       }
 
       if (sala && r.sala) {
-        valid = valid && r.sala === sala;
+        valid &&= r.sala === sala;
       }
 
       return valid;
@@ -232,12 +215,12 @@ app.get('/api/stats', async (req, res) => {
       por_actividad: {},
       por_dia: {},
       por_hora: {},
+      heatmap: {},
     };
 
     filtered.forEach((r) => {
       if (r.sala) {
-        stats.por_sala[r.sala] =
-          (stats.por_sala[r.sala] || 0) + 1;
+        stats.por_sala[r.sala] = (stats.por_sala[r.sala] || 0) + 1;
       }
 
       if (r.actividad) {
@@ -246,16 +229,26 @@ app.get('/api/stats', async (req, res) => {
       }
 
       if (r.fecha) {
-        stats.por_dia[r.fecha] =
-          (stats.por_dia[r.fecha] || 0) + 1;
+        stats.por_dia[r.fecha] = (stats.por_dia[r.fecha] || 0) + 1;
       }
 
       const hora = r.hora_entrada
         ? r.hora_entrada.substring(0, 2)
         : '00';
 
-      stats.por_hora[hora] =
-        (stats.por_hora[hora] || 0) + 1;
+      stats.por_hora[hora] = (stats.por_hora[hora] || 0) + 1;
+
+      // ===== MAPA DE CALOR (08–20) =====
+      if (r.fecha && r.hora_entrada) {
+        if (hora >= '08' && hora <= '20') {
+          if (!stats.heatmap[r.fecha]) {
+            stats.heatmap[r.fecha] = {};
+          }
+
+          stats.heatmap[r.fecha][hora] =
+            (stats.heatmap[r.fecha][hora] || 0) + 1;
+        }
+      }
     });
 
     res.json(stats);
@@ -267,10 +260,10 @@ app.get('/api/stats', async (req, res) => {
       por_actividad: {},
       por_dia: {},
       por_hora: {},
+      heatmap: {},
     });
   }
 });
-
 
 // ==================== Export Excel ====================
 async function generateExcel(rows, titulo) {
@@ -308,51 +301,34 @@ async function generateExcel(rows, titulo) {
     col.width = Math.min(maxLength + 2, 50);
   });
 
-  return await workbook.xlsx.writeBuffer();
+  return workbook.xlsx.writeBuffer();
 }
 
 app.get('/api/export', async (req, res) => {
-  try {
-    const { from, to, sala } = req.query;
-    const allRows = await getAllRows();
+  const { from, to, sala } = req.query;
+  const allRows = await getAllRows();
 
-    const filtered = allRows.filter((r) => {
-      let valid = true;
-      if (from)
-        valid =
-          valid &&
-          new Date(`${r.fecha}T00:00:00`) >=
-            new Date(`${from}T00:00:00`);
-      if (to)
-        valid =
-          valid &&
-          new Date(`${r.fecha}T00:00:00`) <=
-            new Date(`${to}T23:59:59`);
-      if (sala) valid = valid && r.sala === sala;
-      return valid;
-    });
+  const filtered = allRows.filter((r) => {
+    let valid = true;
+    if (from) valid &&= new Date(r.fecha) >= new Date(from);
+    if (to) valid &&= new Date(r.fecha) <= new Date(to);
+    if (sala) valid &&= r.sala === sala;
+    return valid;
+  });
 
-    const titulo = `Reporte ${from || 'inicio'} - ${
-      to || 'fin'
-    }${sala ? ' - ' + sala : ''}`;
+  const titulo = `Reporte ${from || 'inicio'} - ${to || 'fin'}${sala ? ' - ' + sala : ''}`;
+  const buf = await generateExcel(filtered, titulo);
 
-    const buf = await generateExcel(filtered, titulo);
+  res.setHeader(
+    'Content-Type',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  );
+  res.setHeader(
+    'Content-Disposition',
+    'attachment; filename="reporte.xlsx"'
+  );
 
-    res.setHeader(
-      'Content-Type',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    );
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="reporte_${from || 'inicio'}_${
-        to || 'fin'
-      }.xlsx"`
-    );
-
-    res.send(buf);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  res.send(buf);
 });
 
 // ==================== Rutas ====================
@@ -368,8 +344,3 @@ app.get('/', (req, res) =>
 app.listen(PORT, '0.0.0.0', () =>
   console.log(`Server running on port ${PORT}`)
 );
-
-
-
-
-
