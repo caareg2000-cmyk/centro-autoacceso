@@ -31,11 +31,10 @@ btnCargar.addEventListener('click', async () => {
   const hasta = document.getElementById('hasta').value;
 
   const params = new URLSearchParams({ sala, from: desde, to: hasta });
-
   const resp = await fetch(`/api/stats?${params.toString()}`);
   const data = await resp.json();
 
-  renderEstadisticas(data, sala, desde, hasta);
+  renderEstadisticas(data);
 });
 
 // --------------------
@@ -53,17 +52,10 @@ btnExport.addEventListener('click', () => {
 // --------------------
 // Renderizar estadísticas
 // --------------------
-function renderEstadisticas(data, sala, desde, hasta) {
-  const total = data.total || 0;
-
-  const rangoTexto = (desde && hasta)
-    ? `entre el ${formatearFecha(desde)} y el ${formatearFecha(hasta)}`
-    : 'en el periodo completo';
-
-  const salaTexto = sala ? `en la sala "${sala}"` : 'en todas las salas';
-
+function renderEstadisticas(data) {
+  // ===== GLOBAL =====
   resumenGlobal.innerHTML =
-    `📊 Se registraron <b>${total}</b> asistencias ${salaTexto} ${rangoTexto}.`;
+    `📊 Se registraron <b>${data.total || 0}</b> asistencias.`;
 
   // ===== ACTIVIDADES =====
   const actividadesData = {};
@@ -92,40 +84,28 @@ function renderEstadisticas(data, sala, desde, hasta) {
     }
   });
 
- // ===== POR HORA =====
-// Horario real: 08:00 a 20:00
-const horas = Array.from({ length: 13 }, (_, i) =>
-  (i + 8).toString().padStart(2, '0')
-);
+  // ===== POR HORA (08–20) =====
+  const horas = Array.from({ length: 13 }, (_, i) =>
+    (i + 8).toString().padStart(2, '0')
+  );
 
-const valoresHora = horas.map(h => data.por_hora?.[h] || 0);
+  const valoresHora = horas.map(h => data.por_hora?.[h] || 0);
 
-// Promedio solo en horario activo
-const promedioHora = valoresHora.length
-  ? (valoresHora.reduce((a, b) => a + b, 0) / valoresHora.length).toFixed(2)
-  : 0;
+  const promedioHora = valoresHora.length
+    ? (valoresHora.reduce((a,b)=>a+b,0)/valoresHora.length).toFixed(2)
+    : 0;
 
-resumenHora.innerHTML =
-  `Promedio por hora (08:00–20:00): <b>${promedioHora}</b>`;
+  resumenHora.innerHTML =
+    `Promedio por hora (08:00–20:00): <b>${promedioHora}</b>`;
 
-renderChart('graficoHora', {
-  type: 'bar',
-  data: {
-    labels: horas,
-    datasets: [
-      {
-        label: 'Registros por hora',
-        data: valoresHora
-      }
-    ]
-  },
-  options: {
-    scales: {
-      y: { beginAtZero: true }
-    }
-  }
-});
-
+  renderChart('graficoHora', {
+    type: 'bar',
+    data: {
+      labels: horas,
+      datasets: [{ label: 'Registros', data: valoresHora }]
+    },
+    options: { scales: { y: { beginAtZero: true } } }
+  });
 
   // ===== POR DIA =====
   const dias = Object.keys(data.por_dia || {}).sort();
@@ -146,6 +126,62 @@ renderChart('graficoHora', {
     },
     options: { scales: { y: { beginAtZero: true } } }
   });
+
+  // ===== HEATMAP =====
+  renderHeatmap(data.heatmap || {});
+}
+
+// --------------------
+// HEATMAP (Fecha x Hora)
+// --------------------
+function renderHeatmap(heatmapData) {
+  heatmapContainer.innerHTML = '';
+
+  const horas = Array.from({ length: 13 }, (_, i) =>
+    (i + 8).toString().padStart(2, '0')
+  );
+
+  const fechas = Object.keys(heatmapData).sort();
+
+  if (!fechas.length) {
+    resumenHeatmap.innerHTML = 'No hay datos para el mapa de calor.';
+    return;
+  }
+
+  resumenHeatmap.innerHTML =
+    'Mapa de calor: intensidad de registros por fecha y hora';
+
+  // Tabla
+  const table = document.createElement('table');
+  table.className = 'heatmap-table';
+
+  // Header
+  const thead = document.createElement('thead');
+  const hRow = document.createElement('tr');
+  hRow.innerHTML = '<th>Fecha</th>' + horas.map(h => `<th>${h}</th>`).join('');
+  thead.appendChild(hRow);
+  table.appendChild(thead);
+
+  // Body
+  const tbody = document.createElement('tbody');
+
+  fechas.forEach(fecha => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${formatearFecha(fecha)}</td>`;
+
+    horas.forEach(h => {
+      const valor = heatmapData[fecha]?.[h] || 0;
+      const td = document.createElement('td');
+      td.textContent = valor || '';
+      td.style.backgroundColor = colorHeatmap(valor);
+      tr.appendChild(td);
+    });
+
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  heatmapContainer.appendChild(table);
 }
 
 // --------------------
@@ -166,8 +202,15 @@ function generarColores(n) {
 }
 
 function formatearFecha(f) {
-  return new Date(f).toLocaleDateString('es-MX', {
-    day: '2-digit', month: 'long', year: 'numeric'
+  return new Date(f + 'T00:00:00').toLocaleDateString('es-MX', {
+    day: '2-digit', month: 'short', year: 'numeric'
   });
 }
 
+function colorHeatmap(valor) {
+  if (valor === 0) return '#f0f0f0';
+  if (valor <= 2) return '#c6e48b';
+  if (valor <= 5) return '#7bc96f';
+  if (valor <= 10) return '#239a3b';
+  return '#196127';
+}
