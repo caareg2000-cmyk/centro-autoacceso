@@ -92,23 +92,40 @@ function renderEstadisticas(data, sala, desde, hasta) {
     }
   });
 
-  // ===== POR HORA =====
-  const horas = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
-  const valoresHora = horas.map(h => data.por_hora?.[h] || 0);
+ // ===== POR HORA =====
+// Horario real: 08:00 a 20:00
+const horas = Array.from({ length: 13 }, (_, i) =>
+  (i + 8).toString().padStart(2, '0')
+);
 
-  resumenHora.innerHTML =
-    `Promedio por hora: <b>${
-      (valoresHora.reduce((a,b)=>a+b,0)/24).toFixed(2)
-    }</b>`;
+const valoresHora = horas.map(h => data.por_hora?.[h] || 0);
 
-  renderChart('graficoHora', {
-    type: 'bar',
-    data: {
-      labels: horas,
-      datasets: [{ label: 'Registros', data: valoresHora }]
-    },
-    options: { scales: { y: { beginAtZero: true } } }
-  });
+// Promedio solo en horario activo
+const promedioHora = valoresHora.length
+  ? (valoresHora.reduce((a, b) => a + b, 0) / valoresHora.length).toFixed(2)
+  : 0;
+
+resumenHora.innerHTML =
+  `Promedio por hora (08:00–20:00): <b>${promedioHora}</b>`;
+
+renderChart('graficoHora', {
+  type: 'bar',
+  data: {
+    labels: horas,
+    datasets: [
+      {
+        label: 'Registros por hora',
+        data: valoresHora
+      }
+    ]
+  },
+  options: {
+    scales: {
+      y: { beginAtZero: true }
+    }
+  }
+});
+
 
   // ===== POR DIA =====
   const dias = Object.keys(data.por_dia || {}).sort();
@@ -153,3 +170,4 @@ function formatearFecha(f) {
     day: '2-digit', month: 'long', year: 'numeric'
   });
 }
+
